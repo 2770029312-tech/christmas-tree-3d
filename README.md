@@ -9,7 +9,11 @@ the published page does not depend on a CDN or any external assets.
 
 ## Open
 
-Open `index.html` directly, or use the GitHub Pages URL once published.
+Open the permanent page:
+
+https://2770029312-tech.github.io/christmas-tree-3d/
+
+You can also open `index.html` directly.
 
 Drag to rotate the tree. Pinch on iPhone or use the mouse wheel to zoom.
 
