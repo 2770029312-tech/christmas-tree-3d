@@ -1,0 +1,549 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#02040a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Merry Christmas</title>
+<style>
+    :root {
+        color-scheme: dark;
+        --safe-top: env(safe-area-inset-top, 0px);
+        --safe-right: env(safe-area-inset-right, 0px);
+        --safe-bottom: env(safe-area-inset-bottom, 0px);
+        --safe-left: env(safe-area-inset-left, 0px);
+    }
+
+    * {
+        box-sizing: border-box;
+    }
+
+    html,
+    body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: #02040a;
+        overscroll-behavior: none;
+    }
+
+    body {
+        position: fixed;
+        inset: 0;
+        touch-action: none;
+        -webkit-user-select: none;
+        user-select: none;
+        background:
+            radial-gradient(circle at 50% 18%, #13243b 0%, #060b17 45%, #010205 100%);
+    }
+
+    #stage,
+    #snow,
+    #copy {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+    }
+
+    #stage {
+        z-index: 1;
+    }
+
+    #stage canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+    }
+
+    #snow {
+        z-index: 2;
+        pointer-events: none;
+    }
+
+    #copy {
+        z-index: 3;
+        display: flex;
+        align-items: flex-end;
+        justify-content: flex-start;
+        padding:
+            0
+            calc(22px + var(--safe-right))
+            calc(42px + var(--safe-bottom))
+            calc(22px + var(--safe-left));
+        pointer-events: none;
+    }
+
+    .greeting {
+        color: rgba(255, 255, 255, 0.96);
+        font-family: "Snell Roundhand", "Apple Chancery", "Monotype Corsiva", "Brush Script MT", Georgia, serif;
+        line-height: 0.96;
+        text-shadow:
+            0 0 8px rgba(255, 255, 255, 0.55),
+            0 0 28px rgba(125, 205, 255, 0.4);
+        transform: rotate(-3deg);
+        transform-origin: left bottom;
+    }
+
+    .greeting strong {
+        display: block;
+        font-size: clamp(30px, 9.4vw, 58px);
+        font-weight: 400;
+        letter-spacing: 0;
+        white-space: nowrap;
+    }
+
+    .greeting span {
+        display: block;
+        margin: 8px 0 0 7px;
+        color: rgba(255, 232, 242, 0.92);
+        font-size: clamp(20px, 5.6vw, 34px);
+        font-weight: 400;
+        letter-spacing: 0;
+    }
+
+    #fallback {
+        position: fixed;
+        z-index: 5;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        padding: 40px;
+        color: #f4f7ff;
+        background: #02040a;
+        font: 17px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        text-align: center;
+    }
+
+    #fallback[hidden] {
+        display: none;
+    }
+</style>
+</head>
+<body>
+<div id="stage" aria-label="Rotating Christmas tree"></div>
+<canvas id="snow" aria-hidden="true"></canvas>
+<div id="copy" aria-hidden="true">
+    <div class="greeting">
+        <strong>Merry Christmas</strong>
+        <span>lyx</span>
+    </div>
+</div>
+<div id="fallback" hidden>This browser cannot display the 3D Christmas tree. Please open it in Safari.</div>
+<!-- THREE_INLINE -->
+<script>
+(() => {
+    "use strict";
+
+    const TAU = Math.PI * 2;
+    const TREE_POINTS = 20000;
+    const GROUND_POINTS = 4000;
+    const STAR_POINTS = 1200;
+    const HEART_POINTS = 1000;
+    const TREE_HEIGHT = 12;
+    const CAMERA_HEIGHT = 6;
+    const CAMERA_DISTANCE = 13;
+    const CAMERA_PITCH = -0.25;
+
+    function makeRandom(seed) {
+        let value = seed >>> 0;
+        return () => {
+            value += 0x6D2B79F5;
+            let t = value;
+            t = Math.imul(t ^ (t >>> 15), t | 1);
+            t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+    }
+
+    const random = makeRandom(0xC0FFEE);
+    const randomRange = (min, max) => min + (max - min) * random();
+    const randomInt = (min, max) => Math.floor(randomRange(min, max + 1));
+
+    function scenePoint(target, x, y, z, color) {
+        target.positions.push(x, y, z);
+        target.colors.push(color[0] / 255, color[1] / 255, color[2] / 255);
+    }
+
+    function generateScene() {
+        const points = { positions: [], colors: [] };
+        const spiralCount = Math.floor(TREE_POINTS * 0.7);
+
+        for (let i = 0; i < spiralCount; i++) {
+            const u = random();
+            const h = Math.pow(u, 1.6);
+            const y = TREE_HEIGHT * h + 0.2;
+            let radius = Math.pow(1 - h, 1.1) * 3.2;
+            const branchWave = Math.max(0, Math.sin((h * 5.8 + 0.15) * TAU));
+            radius *= 1 + 0.65 * branchWave;
+
+            const angle = u * 9 * TAU + randomRange(-0.22, 0.22);
+            const r = radius * randomRange(0.85, 1.08);
+            const midBoost = Math.max(0.15, 1 - Math.abs(h - 0.55) * 1.5);
+            let color = [
+                255,
+                Math.min(255, 155 + Math.floor(90 * midBoost) + randomInt(-15, 20)),
+                Math.min(255, 185 + Math.floor(70 * midBoost) + randomInt(-15, 35))
+            ];
+            if (random() < 0.08) {
+                color = [255, 255 - randomInt(0, 35), 230 + randomInt(0, 25)];
+            }
+            scenePoint(points, Math.cos(angle) * r, y, Math.sin(angle) * r, color);
+        }
+
+        for (let i = spiralCount; i < TREE_POINTS; i++) {
+            const h = Math.pow(random(), 1.9);
+            const y = TREE_HEIGHT * h + 0.2 + randomRange(-0.08, 0.08);
+            let radius = Math.pow(1 - h, 1.1) * 4.3;
+            const branchWave = Math.max(0, Math.sin((h * 5.8 + 0.15) * TAU));
+            radius *= 1 + 0.65 * branchWave;
+            const r = radius * Math.sqrt(random());
+            const angle = random() * TAU;
+            scenePoint(
+                points,
+                Math.cos(angle) * r + randomRange(-0.08, 0.08),
+                y,
+                Math.sin(angle) * r + randomRange(-0.08, 0.08),
+                [255, randomInt(165, 225), randomInt(190, 250)]
+            );
+        }
+
+        const rings = [4.6, 6, 7.4, 8.8, 10.2, 11.4];
+        for (let i = 0; i < GROUND_POINTS; i++) {
+            const ring = rings[randomInt(0, rings.length - 1)];
+            const radius = ring + (random() + random() + random() - 1.5) * 0.42;
+            const angle = random() * TAU;
+            const c = random() < 0.15 ? randomInt(235, 255) : randomInt(190, 235);
+            scenePoint(
+                points,
+                Math.cos(angle) * radius,
+                -0.25,
+                Math.sin(angle) * radius,
+                [c, c, 255]
+            );
+        }
+
+        for (let i = 0; i < STAR_POINTS; i++) {
+            const c = randomInt(215, 255);
+            scenePoint(
+                points,
+                randomRange(-18, 18),
+                randomRange(3, 18),
+                randomRange(-18, 18),
+                [c, c, 255]
+            );
+        }
+
+        let heartCount = 0;
+        while (heartCount < HEART_POINTS) {
+            const x = randomRange(-1.3, 1.3);
+            const y = randomRange(-1.4, 1.4);
+            const field = Math.pow(x * x + y * y - 1, 3) - x * x * Math.pow(y, 3);
+            if (field <= 0) {
+                const distance = Math.hypot(x, y);
+                const factor = Math.max(0.35, 1.15 - 0.5 * distance);
+                const g = Math.max(120, Math.min(255, Math.floor(130 * factor + 80)));
+                const b = Math.max(120, Math.min(255, Math.floor(190 * factor + 70)));
+                scenePoint(
+                    points,
+                    x * 0.72,
+                    TREE_HEIGHT + 0.05 + (y + 1) * 0.45,
+                    randomRange(-0.18, 0.18),
+                    [255, g, b]
+                );
+                heartCount++;
+            }
+        }
+
+        return {
+            positions: new Float32Array(points.positions),
+            colors: new Float32Array(points.colors)
+        };
+    }
+
+    function createDotTexture(THREE) {
+        const size = 64;
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+        const context = canvas.getContext("2d");
+        const gradient = context.createRadialGradient(32, 32, 0, 32, 32, 31);
+        gradient.addColorStop(0, "rgba(255,255,255,1)");
+        gradient.addColorStop(0.28, "rgba(255,255,255,0.95)");
+        gradient.addColorStop(0.62, "rgba(255,255,255,0.36)");
+        gradient.addColorStop(1, "rgba(255,255,255,0)");
+        context.fillStyle = gradient;
+        context.fillRect(0, 0, size, size);
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        texture.needsUpdate = true;
+        return texture;
+    }
+
+    function makeSnowSprite() {
+        const size = 96;
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+        const context = canvas.getContext("2d");
+        const gradient = context.createRadialGradient(48, 48, 0, 48, 48, 47);
+        gradient.addColorStop(0, "rgba(255,255,255,0.95)");
+        gradient.addColorStop(0.2, "rgba(255,255,255,0.75)");
+        gradient.addColorStop(0.55, "rgba(255,255,255,0.22)");
+        gradient.addColorStop(1, "rgba(255,255,255,0)");
+        context.fillStyle = gradient;
+        context.fillRect(0, 0, size, size);
+        return canvas;
+    }
+
+    function startSnow() {
+        const canvas = document.getElementById("snow");
+        const context = canvas.getContext("2d");
+        const sprite = makeSnowSprite();
+        const flakes = Array.from({ length: 10 }, () => ({
+            x: random(),
+            y: randomRange(-0.2, 0.2),
+            radius: randomRange(34, 62),
+            speed: randomRange(0.018, 0.034),
+            drift: randomRange(-0.006, 0.006)
+        }));
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        let width = window.innerWidth;
+        let height = window.innerHeight;
+
+        function resize() {
+            width = window.visualViewport ? window.visualViewport.width : window.innerWidth;
+            height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+            canvas.width = Math.round(width * dpr);
+            canvas.height = Math.round(height * dpr);
+            canvas.style.width = width + "px";
+            canvas.style.height = height + "px";
+            context.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+
+        function draw(dt) {
+            context.clearRect(0, 0, width, height);
+            context.globalCompositeOperation = "lighter";
+            for (const flake of flakes) {
+                flake.y += flake.speed * dt;
+                flake.x += flake.drift * dt;
+                if (flake.y > 1.2) {
+                    flake.y = randomRange(-0.2, -0.05);
+                    flake.x = random();
+                }
+                if (flake.x < -0.1) flake.x = 1.1;
+                if (flake.x > 1.1) flake.x = -0.1;
+                const fade = Math.max(0, Math.min(1, (1.1 - flake.y) * 3));
+                const size = flake.radius * 2.5;
+                context.globalAlpha = 0.32 * fade;
+                context.drawImage(
+                    sprite,
+                    flake.x * width - size / 2,
+                    flake.y * height - size / 2,
+                    size,
+                    size
+                );
+            }
+            context.globalAlpha = 1;
+        }
+
+        resize();
+        window.addEventListener("resize", resize);
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener("resize", resize);
+        }
+
+        return { draw };
+    }
+
+    function startExperience() {
+        const THREE = window.THREE;
+        if (!THREE) {
+            throw new Error("Three.js failed to load.");
+        }
+
+        let renderer;
+        try {
+            renderer = new THREE.WebGLRenderer({
+                antialias: true,
+                alpha: true,
+                powerPreference: "high-performance"
+            });
+        } catch (error) {
+            document.getElementById("fallback").hidden = false;
+            return;
+        }
+
+        if (!renderer.getContext()) {
+            document.getElementById("fallback").hidden = false;
+            return;
+        }
+
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        renderer.setSize(window.innerWidth, window.innerHeight, false);
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        document.getElementById("stage").appendChild(renderer.domElement);
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(
+            76.6,
+            window.innerWidth / window.innerHeight,
+            0.1,
+            120
+        );
+        camera.position.set(0, CAMERA_HEIGHT, CAMERA_DISTANCE);
+        camera.rotation.x = CAMERA_PITCH;
+
+        const data = generateScene();
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute("position", new THREE.BufferAttribute(data.positions, 3));
+        geometry.setAttribute("color", new THREE.BufferAttribute(data.colors, 3));
+
+        const dotTexture = createDotTexture(THREE);
+        const glow = new THREE.Points(
+            geometry,
+            new THREE.PointsMaterial({
+                size: 0.13,
+                map: dotTexture,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.24,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                depthTest: false,
+                sizeAttenuation: true
+            })
+        );
+        const particles = new THREE.Points(
+            geometry,
+            new THREE.PointsMaterial({
+                size: 0.058,
+                map: dotTexture,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.98,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                depthTest: false,
+                sizeAttenuation: true
+            })
+        );
+
+        const world = new THREE.Group();
+        world.position.y = -2.5;
+        world.add(glow, particles);
+        scene.add(world);
+        const snow = startSnow();
+
+        let autoRotation = 0;
+        let dragRotation = 0;
+        let targetDragRotation = 0;
+        let zoom = 1;
+        let targetZoom = 1;
+        let activePointer = null;
+        let pinchDistance = 0;
+        const pointers = new Map();
+
+        function distanceBetweenPointers() {
+            const values = Array.from(pointers.values());
+            return Math.hypot(values[0].x - values[1].x, values[0].y - values[1].y);
+        }
+
+        renderer.domElement.addEventListener("pointerdown", event => {
+            pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+            renderer.domElement.setPointerCapture(event.pointerId);
+            if (pointers.size === 1) {
+                activePointer = event.pointerId;
+            } else if (pointers.size === 2) {
+                activePointer = null;
+                pinchDistance = distanceBetweenPointers();
+            }
+            event.preventDefault();
+        });
+
+        renderer.domElement.addEventListener("pointermove", event => {
+            if (!pointers.has(event.pointerId)) return;
+            const previous = pointers.get(event.pointerId);
+            pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+            if (pointers.size === 1 && activePointer === event.pointerId) {
+                targetDragRotation += (event.clientX - previous.x) * 0.006;
+            } else if (pointers.size === 2) {
+                const distance = distanceBetweenPointers();
+                if (pinchDistance > 0) {
+                    targetZoom = Math.max(0.55, Math.min(1.8, targetZoom * distance / pinchDistance));
+                }
+                pinchDistance = distance;
+            }
+            event.preventDefault();
+        });
+
+        function releasePointer(event) {
+            pointers.delete(event.pointerId);
+            if (pointers.size === 0) {
+                activePointer = null;
+                pinchDistance = 0;
+            } else if (pointers.size === 1) {
+                activePointer = Array.from(pointers.keys())[0];
+                pinchDistance = 0;
+            }
+            event.preventDefault();
+        }
+
+        renderer.domElement.addEventListener("pointerup", releasePointer);
+        renderer.domElement.addEventListener("pointercancel", releasePointer);
+        renderer.domElement.addEventListener("wheel", event => {
+            targetZoom = Math.max(0.55, Math.min(1.8, targetZoom * (1 - event.deltaY * 0.001)));
+            event.preventDefault();
+        }, { passive: false });
+
+        function resize() {
+            const width = window.visualViewport ? window.visualViewport.width : window.innerWidth;
+            const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+            renderer.setSize(width, height, false);
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+        }
+
+        window.addEventListener("resize", resize);
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener("resize", resize);
+        }
+
+        let lastTime = performance.now();
+        let announcedReady = false;
+        function frame(now) {
+            const dt = Math.min(0.05, (now - lastTime) / 1000);
+            lastTime = now;
+            autoRotation += dt * 0.27;
+            dragRotation += (targetDragRotation - dragRotation) * 0.12;
+            zoom += (targetZoom - zoom) * 0.12;
+            world.rotation.y = autoRotation + dragRotation;
+            world.scale.setScalar(zoom);
+            snow.draw(dt * 1000);
+            renderer.render(scene, camera);
+            if (!announcedReady) {
+                announcedReady = true;
+                document.body.dataset.rendererReady = "true";
+            }
+            requestAnimationFrame(frame);
+        }
+
+        requestAnimationFrame(frame);
+    }
+
+    try {
+        startExperience();
+    } catch (error) {
+        console.error(error);
+        document.getElementById("fallback").hidden = false;
+    }
+})();
+</script>
+</body>
+</html>
